@@ -5,16 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(
-    entities = [Athlete::class, LoggedMeal::class, WeightRecord::class, ExerciseEntity::class],
-    version = 1,
-    exportSchema = false
-)
+@Database(entities = [UserEntity::class, NutritionLog::class, WorkoutLog::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun athleteDao(): AthleteDao
-    abstract fun loggedMealDao(): LoggedMealDao
-    abstract fun weightRecordDao(): WeightRecordDao
-    abstract fun exerciseDao(): ExerciseDao
+    abstract fun userDao(): UserDao
+    abstract fun nutritionDao(): NutritionDao
+    abstract fun workoutDao(): WorkoutDao
 
     companion object {
         @Volatile

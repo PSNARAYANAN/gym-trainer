@@ -4,58 +4,37 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface AthleteDao {
-    @Query("SELECT * FROM athletes WHERE id = 1")
-    fun getAthleteFlow(): Flow<Athlete?>
-
-    @Query("SELECT * FROM athletes WHERE id = 1")
-    suspend fun getAthlete(): Athlete?
+interface UserDao {
+    @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+    suspend fun getUserByEmail(email: String): UserEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAthlete(athlete: Athlete)
+    suspend fun insertUser(user: UserEntity)
 
-    @Query("UPDATE athletes SET isLoggedIn = :isLoggedIn WHERE id = 1")
-    suspend fun updateLoggedState(isLoggedIn: Boolean)
+    @Update
+    suspend fun updateUser(user: UserEntity)
 }
 
 @Dao
-interface LoggedMealDao {
-    @Query("SELECT * FROM logged_meals ORDER BY timestamp DESC")
-    fun getAllMealsFlow(): Flow<List<LoggedMeal>>
+interface NutritionDao {
+    @Query("SELECT * FROM nutrition_logs WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getLogsForUser(email: String): Flow<List<NutritionLog>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMeal(meal: LoggedMeal)
+    suspend fun insertLog(log: NutritionLog)
 
-    @Delete
-    suspend fun deleteMeal(meal: LoggedMeal)
-
-    @Query("DELETE FROM logged_meals")
-    suspend fun clearAllMeals()
+    @Query("DELETE FROM nutrition_logs WHERE id = :id")
+    suspend fun deleteLogById(id: Int)
 }
 
 @Dao
-interface WeightRecordDao {
-    @Query("SELECT * FROM weight_records ORDER BY timestamp ASC")
-    fun getAllWeightRecordsFlow(): Flow<List<WeightRecord>>
+interface WorkoutDao {
+    @Query("SELECT * FROM workout_logs WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getLogsForUser(email: String): Flow<List<WorkoutLog>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertWeightRecord(record: WeightRecord)
+    suspend fun insertLog(log: WorkoutLog)
 
-    @Query("DELETE FROM weight_records")
-    suspend fun clearWeightRecords()
-}
-
-@Dao
-interface ExerciseDao {
-    @Query("SELECT * FROM exercises ORDER BY id ASC")
-    fun getAllExercisesFlow(): Flow<List<ExerciseEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExercises(exercises: List<ExerciseEntity>)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExercise(exercise: ExerciseEntity)
-
-    @Query("UPDATE exercises SET isBookmarked = :isBookmarked WHERE id = :id")
-    suspend fun updateBookmark(id: Int, isBookmarked: Boolean)
+    @Query("DELETE FROM workout_logs WHERE id = :id")
+    suspend fun deleteLogById(id: Int)
 }
