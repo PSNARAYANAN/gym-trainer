@@ -119,3 +119,27 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+tasks.register("copyApkToRoot") {
+    val srcFile = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
+    val destFile = layout.projectDirectory.file("IronFuel_debug.apk")
+    
+    inputs.file(srcFile).withPropertyName("srcFile")
+    outputs.file(destFile).withPropertyName("destFile")
+
+    doLast {
+        val src = srcFile.get().asFile
+        val dest = destFile.asFile
+        if (src.exists()) {
+            src.copyTo(dest, overwrite = true)
+            println("APK copied successfully to project root: ${dest.absolutePath}")
+        } else {
+            println("Source APK not found at: ${src.absolutePath}")
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleDebug" }.all {
+    finalizedBy("copyApkToRoot")
+}
+
