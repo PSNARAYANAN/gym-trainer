@@ -1,5 +1,5 @@
 {
-  "name": "IronFuel",
+  "name": "IronFuel V7",
   "description": "Precision performance, nutrition tracking, and food scanner app designed for elite physical development.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

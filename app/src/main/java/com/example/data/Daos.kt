@@ -38,3 +38,28 @@ interface WorkoutDao {
     @Query("DELETE FROM workout_logs WHERE id = :id")
     suspend fun deleteLogById(id: Int)
 }
+
+@Dao
+interface CardioDao {
+    @Query("SELECT * FROM cardio_logs WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getLogsForUser(email: String): Flow<List<CardioLog>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: CardioLog)
+
+    @Query("DELETE FROM cardio_logs WHERE id = :id")
+    suspend fun deleteLogById(id: Int)
+}
+
+@Dao
+interface WaterDao {
+    @Query("SELECT * FROM water_logs WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getLogsForUser(email: String): Flow<List<WaterLog>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: WaterLog)
+
+    @Query("DELETE FROM water_logs WHERE id = :id")
+    suspend fun deleteLogById(id: Int)
+}
+

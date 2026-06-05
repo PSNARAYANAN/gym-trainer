@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.NutritionLog
 import com.example.data.WorkoutLog
+import com.example.data.CardioLog
+import com.example.data.WaterLog
 import com.example.ui.theme.*
 
 enum class AppScreen {
@@ -573,17 +575,22 @@ fun DashboardScreen(
     val user by viewModel.currentUser.collectAsState()
     val nutritionLogs by viewModel.nutritionLogs.collectAsState()
     val workoutLogs by viewModel.workoutLogs.collectAsState()
+    val cardioLogs by viewModel.cardioLogs.collectAsState()
+    val waterLogs by viewModel.waterLogs.collectAsState()
 
     var activeTab by remember { mutableStateOf(0) } // 0 = Budget & Food Logger, 1 = Workouts, 2 = AI Scanner, 3 = Profile
 
-    val totalCalories = nutritionLogs.sumOf { it.calories }
+    val totalCaloriesConsumed = nutritionLogs.sumOf { it.calories }
+    val totalCaloriesBurned = cardioLogs.sumOf { it.caloriesBurned }
     val totalProtein = nutritionLogs.sumOf { it.proteinGrams }
+    val totalWaterMl = waterLogs.sumOf { it.amountMl }
     val targetCalories = user?.dailyCalorieTarget ?: 2800
     val targetProtein = user?.dailyProteinTarget ?: 180
 
     // Modals
     var showAddMealDialog by remember { mutableStateOf(false) }
     var showAddWorkoutDialog by remember { mutableStateOf(false) }
+    var showAddCardioDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -723,11 +730,12 @@ fun DashboardScreen(
         ) {
             // High-Impact Banner Summary (Calories & Protein budget)
             SummaryBannerCard(
-                totalCalories = totalCalories,
+                totalCaloriesConsumed = totalCaloriesConsumed,
+                totalCaloriesBurned = totalCaloriesBurned,
                 targetCalories = targetCalories,
                 totalProtein = totalProtein,
                 targetProtein = targetProtein,
-                historySize = nutritionLogs.size + workoutLogs.size
+                totalWaterMl = totalWaterMl
             )
 
             HorizontalDivider(color = BorderSlate, thickness = 1.dp)
@@ -740,11 +748,17 @@ fun DashboardScreen(
                 when (activeTab) {
                     0 -> NutritionTabContent(
                         logs = nutritionLogs,
-                        onDelete = { id -> viewModel.deleteMealLog(id) }
+                        waterLogs = waterLogs,
+                        onDeleteMeal = { id -> viewModel.deleteMealLog(id) },
+                        onAddWater = { amount -> viewModel.addWaterLog(amount) },
+                        onDeleteWater = { id -> viewModel.deleteWaterLog(id) }
                     )
                     1 -> WorkoutTabContent(
                         logs = workoutLogs,
-                        onDelete = { id -> viewModel.deleteExerciseLog(id) }
+                        cardioLogs = cardioLogs,
+                        onDeleteWorkout = { id -> viewModel.deleteExerciseLog(id) },
+                        onDeleteCardio = { id -> viewModel.deleteCardioLog(id) },
+                        onAddCardioClick = { showAddCardioDialog = true }
                     )
                     2 -> ScannerTabContent(
                         viewModel = viewModel
@@ -780,6 +794,16 @@ fun DashboardScreen(
             }
         )
     }
+
+    if (showAddCardioDialog) {
+        CardioLogDialog(
+            onDismiss = { showAddCardioDialog = false },
+            onConfirm = { activityType, intensity, durationMinutes ->
+                viewModel.addCardioLog(activityType, intensity, durationMinutes)
+                showAddCardioDialog = false
+            }
+        )
+    }
 }
 
 // ==========================================
@@ -787,103 +811,154 @@ fun DashboardScreen(
 // ==========================================
 @Composable
 fun SummaryBannerCard(
-    totalCalories: Int,
+    totalCaloriesConsumed: Int,
+    totalCaloriesBurned: Int,
     targetCalories: Int,
     totalProtein: Int,
     targetProtein: Int,
-    historySize: Int
+    totalWaterMl: Int
 ) {
+    val netCalories = totalCaloriesConsumed - totalCaloriesBurned
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
         colors = CardDefaults.cardColors(containerColor = DeepCarbonSurface),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, BorderSlate)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            // Calories Column
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "CALORIC POWER",
+                    text = "METRIC STATUS CENTER",
                     style = Typography.labelMedium,
                     color = PaleSlateText,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
                 )
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = "$totalCalories",
-                        style = Typography.headlineMedium,
-                        color = FuelOrange,
-                        fontWeight = FontWeight.ExtraBold
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Water Tracked",
+                        tint = AccentTeal,
+                        modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "/ $targetCalories kcal",
-                        style = Typography.bodyMedium,
-                        color = PaleSlateText,
-                        modifier = Modifier.padding(bottom = 3.dp)
+                        text = "Water: ${totalWaterMl}ml / 3000ml",
+                        style = Typography.labelSmall,
+                        color = CleanWhite,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Progress Bar
-                val calProgress = (totalCalories.toFloat() / targetCalories.toFloat()).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = calProgress,
-                    color = FuelOrange,
-                    trackColor = BorderSlate,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                )
             }
 
-            Spacer(modifier = Modifier.width(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Protein Column
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "ANABOLIC PROTEIN",
-                    style = Typography.labelMedium,
-                    color = PaleSlateText,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1.1f)) {
                     Text(
-                        text = "${totalProtein}g",
-                        style = Typography.headlineMedium,
-                        color = AccentTeal,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "/ ${targetProtein}g",
-                        style = Typography.bodyMedium,
+                        text = "NET ENERGY BALANCE",
+                        style = Typography.labelSmall,
                         color = PaleSlateText,
-                        modifier = Modifier.padding(bottom = 3.dp)
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = "$netCalories",
+                            style = Typography.headlineMedium,
+                            color = if (netCalories <= targetCalories) FuelOrange else IronCoreRed,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "/ $targetCalories kcal",
+                            style = Typography.bodyMedium,
+                            color = PaleSlateText,
+                            modifier = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Column {
+                            Text("Diet Input", style = Typography.labelSmall, color = PaleSlateText, fontSize = 9.sp)
+                            Text("${totalCaloriesConsumed} kcal", style = Typography.bodySmall, color = FuelOrange, fontWeight = FontWeight.Bold)
+                        }
+                        Column {
+                            Text("Active Burn", style = Typography.labelSmall, color = PaleSlateText, fontSize = 9.sp)
+                            Text("${totalCaloriesBurned} kcal", style = Typography.bodySmall, color = IronCoreRed, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val netProgress = (netCalories.toFloat() / targetCalories.toFloat()).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = netProgress,
+                        color = FuelOrange,
+                        trackColor = BorderSlate,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.width(20.dp))
 
-                val protProgress = (totalProtein.toFloat() / targetProtein.toFloat()).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = protProgress,
-                    color = AccentTeal,
-                    trackColor = BorderSlate,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                )
+                Column(modifier = Modifier.weight(0.9f)) {
+                    Text(
+                        text = "ANABOLIC PROTEIN",
+                        style = Typography.labelSmall,
+                        color = PaleSlateText,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = "${totalProtein}g",
+                            style = Typography.headlineMedium,
+                            color = AccentTeal,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "/ ${targetProtein}g",
+                            style = Typography.bodyMedium,
+                            color = PaleSlateText,
+                            modifier = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    val protProgress = (totalProtein.toFloat() / targetProtein.toFloat()).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = protProgress,
+                        color = AccentTeal,
+                        trackColor = BorderSlate,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                    )
+                }
             }
         }
     }
@@ -897,28 +972,154 @@ fun SummaryBannerCard(
 @Composable
 fun NutritionTabContent(
     logs: List<NutritionLog>,
-    onDelete: (Int) -> Unit
+    waterLogs: List<WaterLog>,
+    onDeleteMeal: (Int) -> Unit,
+    onAddWater: (Int) -> Unit,
+    onDeleteWater: (Int) -> Unit
 ) {
-    if (logs.isEmpty()) {
-        EmptyLogPlaceholder(
-            message = "No meals logged yet.\nClick '+' to load your fuel!",
-            icon = Icons.Default.List
-        )
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = DeepCarbonSurface),
+                border = BorderStroke(1.dp, BorderSlate)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AccentTeal.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Info, contentDescription = "Water Info", tint = AccentTeal, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "FLUID HYDRATION TRACKER",
+                                    style = Typography.labelMedium,
+                                    color = PaleSlateText,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                val currentWater = waterLogs.sumOf { it.amountMl }
+                                Text(
+                                    text = "$currentWater / 3000 ml",
+                                    style = Typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = CleanWhite
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Button(
+                            onClick = { onAddWater(250) },
+                            colors = ButtonDefaults.buttonColors(containerColor = BorderSlate),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("+250ml Cup", style = Typography.labelSmall, color = AccentTeal, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { onAddWater(500) },
+                            colors = ButtonDefaults.buttonColors(containerColor = BorderSlate),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("+500ml Bottle", style = Typography.labelSmall, color = AccentTeal, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { onAddWater(750) },
+                            colors = ButtonDefaults.buttonColors(containerColor = BorderSlate),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("+750ml Shaker", style = Typography.labelSmall, color = AccentTeal, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (waterLogs.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = BorderSlate, thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Today's Loged Fluid Entries:",
+                            style = Typography.labelSmall,
+                            color = PaleSlateText
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        waterLogs.forEach { waterLog ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "💧 Water log: ${waterLog.amountMl} ml",
+                                    style = Typography.bodySmall,
+                                    color = CleanWhite
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Delete log",
+                                    tint = IronCoreRed,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable { onDeleteWater(waterLog.id) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "TODAY'S FUEL CONSUMED",
+                style = Typography.labelMedium,
+                color = PaleSlateText,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+        }
+
+        if (logs.isEmpty()) {
             item {
-                Text(
-                    text = "TODAY'S FUEL CONSUMED",
-                    style = Typography.labelMedium,
-                    color = PaleSlateText,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                EmptyLogPlaceholder(
+                    message = "No meals logged yet.\nClick '+' to load your fuel!",
+                    icon = Icons.Default.List
                 )
             }
+        } else {
             items(logs) { log ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -948,7 +1149,7 @@ fun NutritionTabContent(
                             }
                         }
 
-                        IconButton(onClick = { onDelete(log.id) }) {
+                        IconButton(onClick = { onDeleteMeal(log.id) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete log", tint = IronCoreRed.copy(alpha = 0.8f))
                         }
                     }
@@ -962,73 +1163,192 @@ fun NutritionTabContent(
 @Composable
 fun WorkoutTabContent(
     logs: List<WorkoutLog>,
-    onDelete: (Int) -> Unit
+    cardioLogs: List<CardioLog>,
+    onDeleteWorkout: (Int) -> Unit,
+    onDeleteCardio: (Int) -> Unit,
+    onAddCardioClick: () -> Unit
 ) {
-    if (logs.isEmpty()) {
-        EmptyLogPlaceholder(
-            message = "No anaerobics logged today.\nClick '+' to log weights lifted!",
-            icon = Icons.Default.ThumbUp
-        )
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+    var subTab by remember { mutableStateOf(0) } // 0 = Lifts, 1 = Cardio
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .background(DeepCarbonSurface, RoundedCornerShape(8.dp))
+                .padding(4.dp)
         ) {
-            item {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (subTab == 0) FuelOrange else Color.Transparent)
+                    .clickable { subTab = 0 }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "PERFORMANCE ATHLETIC LIFTS",
+                    text = "STRENGTH LIFTS",
                     style = Typography.labelMedium,
-                    color = PaleSlateText,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    color = if (subTab == 0) CleanWhite else PaleSlateText
                 )
             }
-            items(logs) { log ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = DeepCarbonSurface),
-                    border = BorderStroke(1.dp, BorderSlate)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (subTab == 1) FuelOrange else Color.Transparent)
+                    .clickable { subTab = 1 }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "CARDIO ENDURANCE",
+                    style = Typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (subTab == 1) CleanWhite else PaleSlateText
+                )
+            }
+        }
+
+        if (subTab == 0) {
+            if (logs.isEmpty()) {
+                EmptyLogPlaceholder(
+                    message = "No anaerobic lifts logged today.\nClick '+' to log weights lifted!",
+                    icon = Icons.Default.ThumbUp
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
+                    items(logs) { log ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = DeepCarbonSurface),
+                            border = BorderStroke(1.dp, BorderSlate)
+                        ) {
+                            Row(
                                 modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(IronCoreRed.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Star, contentDescription = null, tint = IronCoreRed)
-                            }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(IronCoreRed.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Star, contentDescription = null, tint = IronCoreRed)
+                                    }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
 
-                            Column {
-                                Text(
-                                    text = log.exerciseName,
-                                    style = Typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CleanWhite
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${log.sets} sets x ${log.reps} reps @ ${log.weightKg} kg",
-                                    style = Typography.bodyMedium,
-                                    color = PaleSlateText,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    Column {
+                                        Text(
+                                            text = log.exerciseName,
+                                            style = Typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = CleanWhite
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${log.sets} sets x ${log.reps} reps @ ${log.weightKg} kg",
+                                            style = Typography.bodyMedium,
+                                            color = PaleSlateText,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                IconButton(onClick = { onDeleteWorkout(log.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete lift log", tint = IronCoreRed.copy(alpha = 0.8f))
+                                }
                             }
                         }
+                    }
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Button(
+                    onClick = onAddCardioClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = CleanWhite)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("LOG ACTIVE ENDURANCE (MET)", fontWeight = FontWeight.Bold, color = CleanWhite)
+                }
 
-                        IconButton(onClick = { onDelete(log.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete lift log", tint = IronCoreRed.copy(alpha = 0.8f))
+                if (cardioLogs.isEmpty()) {
+                    EmptyLogPlaceholder(
+                        message = "No outdoor/aerobic cardio logs today.\nTrack aerobic efforts to balance net calories!",
+                        icon = Icons.Default.Favorite
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(cardioLogs) { log ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = DeepCarbonSurface),
+                                border = BorderStroke(1.dp, BorderSlate)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(AccentTeal.copy(alpha = 0.15f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.Favorite, contentDescription = null, tint = AccentTeal)
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column {
+                                            Text(
+                                                text = "${log.activityType} (${log.intensity})",
+                                                style = Typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = CleanWhite
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "⏱️ ${log.durationMinutes} mins | 🔥 ${log.caloriesBurned} kcal burned",
+                                                style = Typography.bodyMedium,
+                                                color = PaleSlateText,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(onClick = { onDeleteCardio(log.id) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete cardio log", tint = IronCoreRed.copy(alpha = 0.8f))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1527,6 +1847,120 @@ fun WorkoutLogDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = FuelOrange)
             ) {
                 Text("LOG LIFT", color = CleanWhite)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCEL", color = PaleSlateText)
+            }
+        },
+        containerColor = DeepCarbonSurface
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CardioLogDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (activityType: String, intensity: String, durationMinutes: Int) -> Unit
+) {
+    val activities = listOf("Running", "Cycling", "Swimming", "Walking / Rucking", "HIIT")
+    val intensities = listOf("Low", "Moderate", "High")
+
+    var selectedActivity by remember { mutableStateOf(activities[0]) }
+    var selectedIntensity by remember { mutableStateOf(intensities[1]) }
+    var durationText by remember { mutableStateOf("") }
+
+    var activityMenuExpanded by remember { mutableStateOf(false) }
+    var intensityMenuExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Log Cardio Activity (MET Based)", color = CleanWhite, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Select Activity:", color = PaleSlateText, style = Typography.labelMedium)
+                ExposedDropdownMenuBox(
+                    expanded = activityMenuExpanded,
+                    onExpandedChange = { activityMenuExpanded = !activityMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedActivity,
+                        onValueChange = {},
+                        readOnly = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = CleanWhite, unfocusedTextColor = CleanWhite),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = activityMenuExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = activityMenuExpanded,
+                        onDismissRequest = { activityMenuExpanded = false }
+                    ) {
+                        activities.forEach { act ->
+                            DropdownMenuItem(
+                                text = { Text(act) },
+                                onClick = {
+                                    selectedActivity = act
+                                    activityMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Text("Select Intensity:", color = PaleSlateText, style = Typography.labelMedium)
+                ExposedDropdownMenuBox(
+                    expanded = intensityMenuExpanded,
+                    onExpandedChange = { intensityMenuExpanded = !intensityMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedIntensity,
+                        onValueChange = {},
+                        readOnly = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = CleanWhite, unfocusedTextColor = CleanWhite),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = intensityMenuExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = intensityMenuExpanded,
+                        onDismissRequest = { intensityMenuExpanded = false }
+                    ) {
+                        intensities.forEach { intensity ->
+                            DropdownMenuItem(
+                                text = { Text(intensity) },
+                                onClick = {
+                                    selectedIntensity = intensity
+                                    intensityMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = durationText,
+                    onValueChange = { durationText = it },
+                    label = { Text("Duration (minutes)") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = CleanWhite, unfocusedTextColor = CleanWhite),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val minutes = durationText.toIntOrNull() ?: 1
+                    onConfirm(selectedActivity, selectedIntensity, minutes)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = FuelOrange),
+                enabled = durationText.isNotBlank() && durationText.toIntOrNull() != null
+            ) {
+                Text("LOG CARDIO", color = CleanWhite)
             }
         },
         dismissButton = {

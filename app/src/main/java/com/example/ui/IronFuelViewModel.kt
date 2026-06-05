@@ -72,6 +72,20 @@ class IronFuelViewModel(application: Application) : AndroidViewModel(application
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val cardioLogs: StateFlow<List<CardioLog>> = _currentUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getCardioLogs(user.email)
+            else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val waterLogs: StateFlow<List<WaterLog>> = _currentUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getWaterLogs(user.email)
+            else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Scanner States
     private val _scannedFoodResult = MutableStateFlow<ScannedFood?>(null)
     val scannedFoodResult: StateFlow<ScannedFood?> = _scannedFoodResult.asStateFlow()
@@ -295,6 +309,80 @@ class IronFuelViewModel(application: Application) : AndroidViewModel(application
     fun deleteExerciseLog(id: Int) {
         viewModelScope.launch {
             repository.deleteWorkout(id)
+        }
+    }
+
+    // --- Cardio Actions with Precise MET Calculations ---
+    fun addCardioLog(activityType: String, intensity: String, durationMinutes: Int) {
+        val user = _currentUser.value ?: return
+        if (durationMinutes <= 0) return
+        val weight = user.bodyWeightKg
+        val met: Double = when (activityType) {
+            "Running" -> when (intensity) {
+                "High" -> 11.5
+                "Moderate" -> 9.8
+                else -> 7.0
+            }
+            "Cycling" -> when (intensity) {
+                "High" -> 10.5
+                "Moderate" -> 7.5
+                else -> 4.0
+            }
+            "Swimming" -> when (intensity) {
+                "High" -> 9.8
+                "Moderate" -> 6.0
+                else -> 4.0
+            }
+            "Walking / Rucking" -> when (intensity) {
+                "High" -> 7.5 // Heavy Rucking MET
+                "Moderate" -> 4.5 // Power Walk MET
+                else -> 3.3 // Casual Walk MET
+            }
+            "HIIT" -> when (intensity) {
+                "High" -> 8.0
+                else -> 5.0
+            }
+            else -> 6.0 // Standard vigorous lifting MET
+        }
+        // Scientific Energy Expenditure Formula: METs x 3.5 x Body Weight (kg) / 200 = calories/min
+        // Multiplied by Duration (min) to get absolute total calories burned
+        val exactCals = ((met * 3.5 * weight / 200.0) * durationMinutes).toInt()
+        viewModelScope.launch {
+            repository.insertCardio(
+                CardioLog(
+                    userEmail = user.email,
+                    activityType = activityType,
+                    intensity = intensity,
+                    durationMinutes = durationMinutes,
+                    caloriesBurned = exactCals
+                )
+            )
+        }
+    }
+
+    fun deleteCardioLog(id: Int) {
+        viewModelScope.launch {
+            repository.deleteCardio(id)
+        }
+    }
+
+    // --- Water Tracker Actions ---
+    fun addWaterLog(amountMl: Int) {
+        val user = _currentUser.value ?: return
+        if (amountMl <= 0) return
+        viewModelScope.launch {
+            repository.insertWater(
+                WaterLog(
+                    userEmail = user.email,
+                    amountMl = amountMl
+                )
+            )
+        }
+    }
+
+    fun deleteWaterLog(id: Int) {
+        viewModelScope.launch {
+            repository.deleteWater(id)
         }
     }
 

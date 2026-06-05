@@ -10,11 +10,11 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.aistudio.ironfuel.pxrtmq"
+        applicationId = "com.aistudio.ironfuelv7.pxrtmq"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 7
+        versionName = "7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -91,18 +91,28 @@ dependencies {
 }
 
 tasks.register("copyApkToRoot") {
+    outputs.upToDateWhen { false }
+
     val srcFile = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
     val destFile = layout.projectDirectory.file("IronFuel_debug.apk")
-    
-    inputs.file(srcFile).withPropertyName("srcFile")
-    outputs.file(destFile).withPropertyName("destFile")
+    val rootDestFile = file("${project.rootDir}/IronFuel_debug.apk")
 
     doLast {
         val src = srcFile.get().asFile
         val dest = destFile.asFile
+        val rootDest = rootDestFile
         if (src.exists()) {
+            if (dest.exists()) {
+                dest.delete()
+            }
             src.copyTo(dest, overwrite = true)
-            println("APK copied successfully to project root: ${dest.absolutePath}")
+            println("APK copied successfully to app folder: ${dest.absolutePath} (Size: ${dest.length()} bytes)")
+
+            if (rootDest.exists()) {
+                rootDest.delete()
+            }
+            src.copyTo(rootDest, overwrite = true)
+            println("APK copied successfully to workspace root: ${rootDest.absolutePath} (Size: ${rootDest.length()} bytes)")
         } else {
             println("Source APK not found at: ${src.absolutePath}")
         }

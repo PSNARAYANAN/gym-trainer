@@ -36,3 +36,22 @@ data class WorkoutLog(
     val weightKg: Double,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "cardio_logs")
+data class CardioLog(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userEmail: String,
+    val activityType: String,
+    val intensity: String,
+    val durationMinutes: Int,
+    val caloriesBurned: Int,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "water_logs")
+data class WaterLog(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userEmail: String,
+    val amountMl: Int,
+    val timestamp: Long = System.currentTimeMillis()
+)
