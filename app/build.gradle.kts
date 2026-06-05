@@ -10,8 +10,8 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.ironfuel"
-        minSdk = 26
+        applicationId = "com.aistudio.ironfuel.pxrtmq"
+        minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"

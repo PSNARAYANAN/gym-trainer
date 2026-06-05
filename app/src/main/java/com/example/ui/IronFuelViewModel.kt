@@ -394,8 +394,15 @@ class IronFuelViewModel(application: Application) : AndroidViewModel(application
                     val partsArr = contentObj.getJSONArray("parts")
                     val textResult = partsArr.getJSONObject(0).getString("text")
 
-                    // Parse internal text representing JSON
-                    val resultJson = JSONObject(textResult.trim())
+                    // Parse internal text representing JSON with extremely robust brace extraction
+                    var cleanText = textResult.trim()
+                    val firstBrace = cleanText.indexOf('{')
+                    val lastBrace = cleanText.lastIndexOf('}')
+                    if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+                        cleanText = cleanText.substring(firstBrace, lastBrace + 1)
+                    }
+
+                    val resultJson = JSONObject(cleanText)
                     ScannedFood(
                         itemName = resultJson.optString("itemName", description),
                         calories = resultJson.optInt("calories", 0),
